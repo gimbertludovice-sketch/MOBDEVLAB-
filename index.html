@@ -74,10 +74,10 @@ select{font:inherit;max-width:100%}
   <button class="ab" id="openReal">Open real site (new tab)</button>
   <button class="ab" id="back" style="background:#444">Back</button></div>
 </div></div></div>
- 
+
 <div class="panel">
  <div class="ctl"><button id="run">&#9654; Run</button><button id="rot">&#10227; Rotate phone</button><button id="playAll">&#128266; Play full explanation</button><button id="stop">&#9632; Stop</button>
- <select id="voice"></select></div>
+ <button id="snd">&#128266; Enable Sound</button><select id="voice"></select><div id="vstat" style="font-size:11px;color:#ffe14d;margin:4px"></div></div>
  <div class="tabs"><button id="t0" class="on">MainActivity.kt</button><button id="t1">DashboardActivity.kt</button></div>
  <div id="code"></div>
  <div id="say">Press Run to start the app, then click any code line (or Play) to hear it explained.</div>
@@ -166,12 +166,23 @@ const DASH=[
 const $=id=>document.getElementById(id);
 let cur=0,counter=0,screen='off',stopFlag=false,voices=[],land=false;
 const synth=window.speechSynthesis;
-function loadVoices(){voices=synth.getVoices();const v=$('voice');v.innerHTML='';
+function loadVoices(){voices=synth?synth.getVoices():[];const v=$('voice');v.innerHTML='';
  voices.forEach((x,i)=>{const o=document.createElement('option');o.value=i;o.textContent=x.name+' ('+x.lang+')';v.appendChild(o)});
- let i=voices.findIndex(x=>/en[-_]US/i.test(x.lang));if(i<0)i=voices.findIndex(x=>/^en/i.test(x.lang));if(i>=0)v.value=i}
-if(synth){loadVoices();synth.onvoiceschanged=loadVoices}
-function speak(t){return new Promise(r=>{$('say').textContent=t;if(!synth||!t)return r();
- synth.cancel();const u=new SpeechSynthesisUtterance(t);const v=voices[$('voice').value];if(v){u.voice=v;u.lang=v.lang}u.rate=.95;u.onend=r;u.onerror=r;synth.speak(u)})}
+ let i=voices.findIndex(x=>/en[-_]US/i.test(x.lang));if(i<0)i=voices.findIndex(x=>/^en/i.test(x.lang));if(i>=0)v.value=i;
+ $('vstat').textContent=!synth?'Speech is not supported in this browser. Please use Chrome or Edge.':voices.length?voices.length+' voices found.':'Loading voices... If none appear, click Enable Sound or use Chrome/Edge.'}
+if(synth){loadVoices();synth.onvoiceschanged=loadVoices;const vt=setInterval(()=>{if(voices.length)clearInterval(vt);else loadVoices()},500)}
+else document.addEventListener('DOMContentLoaded',loadVoices);
+function beep(f=520,d=.09){try{const a=beep.c||(beep.c=new(window.AudioContext||window.webkitAudioContext)());if(a.state==='suspended')a.resume();
+ const o=a.createOscillator(),g=a.createGain();o.type='square';o.frequency.value=f;g.gain.value=.06;o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d)}catch(e){}}
+let keep;
+function speak(t){return new Promise(r=>{$('say').textContent=t;beep();if(!synth||!t)return r();
+ synth.cancel();
+ setTimeout(()=>{const u=new SpeechSynthesisUtterance(t);const v=voices[$('voice').value];
+  if(v){u.voice=v;u.lang=v.lang}else u.lang='en-US';u.rate=.95;u.volume=1;
+  u.onend=()=>{clearInterval(keep);r()};
+  u.onerror=e=>{clearInterval(keep);if(e.error==='not-allowed')$('vstat').textContent='The browser blocked sound. Click Enable Sound.';r()};
+  synth.speak(u);clearInterval(keep);
+  keep=setInterval(()=>{if(synth.speaking){synth.pause();synth.resume()}},10000)},80)})}
 function log(t){$('log').innerHTML+='D/Lifecycle: '+t+'<br>';$('log').scrollTop=1e9}
 function show(s){screen=s;['off','main','dash','web'].forEach(x=>$('s-'+x).classList.toggle('on',x===s));if(s!=='off'&&s!=='web')drawLayouts()}
 function render(){const d=cur?DASH:MAIN;$('code').innerHTML='';
@@ -186,7 +197,8 @@ $('run').onclick=()=>{log('Installing APK on HUAWEI TXZ-W09 API 31');log('Launch
 $('playAll').onclick=async()=>{stopFlag=false;if(screen==='off')$('run').click();
  await speak('Good morning, Sir. I am Gimbert Ludovice, section WITMWD3M1. I will now explain every line of my midterm exam.');
  await playTab(0);if(!stopFlag)await playTab(1)};
-$('stop').onclick=()=>{stopFlag=true;synth&&synth.cancel()};
+$('stop').onclick=()=>{stopFlag=true;clearInterval(keep);synth&&synth.cancel()};
+$('snd').onclick=()=>{beep(880,.15);loadVoices();speak('Sound is working. I am ready to explain my midterm exam.')};
 $('t0').onclick=()=>{cur=0;render()};$('t1').onclick=()=>{cur=1;render()};
 $('btnEnter').onclick=()=>{const n=$('etUsername').value||'Gimbert';$('tvGreeting').textContent='Welcome, '+n+'!';LAYOUT.dash[0][1]='Welcome, '+n+'!';
  show('dash');log('MainActivity Stopped (moved to Dashboard)');speak('Enter Dashboard was pressed. An explicit intent was created, the name '+n+' was attached, and DashboardActivity started.');
